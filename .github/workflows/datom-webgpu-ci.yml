@@ -21,6 +21,14 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser dependencies
+        run: npm install
+
       - name: Install Clojure CLI
         shell: bash
         run: |
