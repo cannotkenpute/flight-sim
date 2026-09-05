@@ -1,4 +1,5 @@
-(ns flight-sim.math)
+(ns flight-sim.math
+  (:refer-clojure :exclude [abs]))
 
 (def pi #?(:clj Math/PI :cljs js/Math.PI))
 
