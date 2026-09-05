@@ -38,10 +38,21 @@ jobs:
           sudo /tmp/clojure-install.sh
           clojure -Sdescribe
 
+      - name: Reconstruct exact full simulator entrypoint
+        shell: bash
+        run: |
+          : > /tmp/flight-app.b64
+          for f in .ci/full-app/part.*.b64; do
+            tr -d '[:space:]' < "$f" >> /tmp/flight-app.b64
+          done
+          base64 -d /tmp/flight-app.b64 > src/cljs/flight_sim/app.cljs
+          echo 'e6043c2794c74233211ab3a49f4997fe0de486983f023e32ec3ff6cd1a3642d6  src/cljs/flight_sim/app.cljs' | sha256sum -c -
+          test "$(wc -c < src/cljs/flight_sim/app.cljs)" -eq 23084
+
       - name: Compile and run CLJS smoke tests
         run: |
           clojure -M:dev -m shadow.cljs.devtools.cli compile test
           node target/node-tests.js
 
-      - name: Build optimized browser bundle
+      - name: Build optimized full browser bundle
         run: clojure -M:dev -m shadow.cljs.devtools.cli release app
