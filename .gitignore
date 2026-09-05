@@ -1,0 +1,5 @@
+.shadow-cljs/
+.cpcache/
+target/
+public/js/
+.DS_Store

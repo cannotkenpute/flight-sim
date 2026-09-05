@@ -1,0 +1,11 @@
+{:deps {:aliases [:dev]}
+ :dev-http {8080 "public"}
+ :builds
+ {:app {:target :browser
+        :output-dir "public/js"
+        :asset-path "/js"
+        :modules {:main {:init-fn flight-sim.app/init}}
+        :devtools {:use-document-protocol true}}
+  :test {:target :node-test
+         :output-to "target/node-tests.js"
+         :autorun true}}}

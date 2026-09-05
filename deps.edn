@@ -1,0 +1,12 @@
+{:paths ["src/cljc" "src/cljs"]
+ :deps {io.github.sonwh98/datomworld
+        {:git/url "https://github.com/sonwh98/datomworld.git"
+         :git/sha "b3a4be7bf2197dac3de380e76620fe8c60fccbfe"}}
+ :aliases
+ {:dev {:extra-paths ["test"]
+        :extra-deps {thheller/shadow-cljs {:mvn/version "3.3.5"}
+                     reagent/reagent {:mvn/version "2.0.1"}}}
+  :test {:extra-paths ["test"]
+         :extra-deps {io.github.cognitect-labs/test-runner
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+         :main-opts ["-m" "cognitect.test-runner"]}}}

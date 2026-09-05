@@ -1,0 +1,39 @@
+name: Datom WebGPU Port CI
+
+on:
+  push:
+    branches: [datom-webgpu-port]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Clojure CLI
+        shell: bash
+        run: |
+          curl -fsSL -o /tmp/clojure-install.sh \
+            https://github.com/clojure/brew-install/releases/download/1.12.6.1673/linux-install.sh
+          chmod +x /tmp/clojure-install.sh
+          sudo /tmp/clojure-install.sh
+          clojure -Sdescribe
+
+      - name: Compile and run CLJS smoke tests
+        run: |
+          clj -M:dev -m shadow.cljs.devtools.cli compile test
+          node target/node-tests.js
+
+      - name: Build optimized browser bundle
+        run: clj -M:dev -m shadow.cljs.devtools.cli release app

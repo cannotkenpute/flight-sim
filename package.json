@@ -1,0 +1,9 @@
+{
+  "name": "flight-sim-datom-postgraphics",
+  "private": true,
+  "scripts": {
+    "dev": "clj -M:dev -m shadow.cljs.devtools.cli watch app",
+    "build": "clj -M:dev -m shadow.cljs.devtools.cli release app",
+    "test:cljs": "clj -M:dev -m shadow.cljs.devtools.cli compile test && node target/node-tests.js"
+  }
+}
