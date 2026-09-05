@@ -1,9 +1,16 @@
 {
   "name": "flight-sim-datom-postgraphics",
   "private": true,
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "source-map-support": "^0.5.21"
+  },
   "scripts": {
-    "dev": "clj -M:dev -m shadow.cljs.devtools.cli watch app",
-    "build": "clj -M:dev -m shadow.cljs.devtools.cli release app",
-    "test:cljs": "clj -M:dev -m shadow.cljs.devtools.cli compile test && node target/node-tests.js"
+    "dev": "clojure -M:dev -m shadow.cljs.devtools.cli watch app",
+    "build": "clojure -M:dev -m shadow.cljs.devtools.cli release app",
+    "test:cljs": "clojure -M:dev -m shadow.cljs.devtools.cli compile test && node target/node-tests.js"
   }
 }
