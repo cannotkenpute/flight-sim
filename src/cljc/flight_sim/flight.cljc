@@ -150,31 +150,23 @@
     state
     (update state :gear-target #(if (pos? %) 0.0 1.0))))
 
-(defn- approach [v target rate dt]
-  (+ v (* (- target v) (min 1.0 (* rate dt)))))
-
-(defn step
-  [height-at state dt]
+(defn step [height-at state dt]
   (let [dt (m/clamp (double dt) 0.0 0.05)
         s (:spec state)
         state (if (= (:gear state) (:gear-target state))
                 state
                 (let [dir (if (> (:gear-target state) (:gear state)) 1.0 -1.0)
                       g2 (+ (:gear state) (* dir 0.55 dt))
-                      g2 (if (pos? dir)
-                           (min g2 (:gear-target state))
-                           (max g2 (:gear-target state)))]
+                      g2 (if (pos? dir) (min g2 (:gear-target state)) (max g2 (:gear-target state)))]
                   (assoc state :gear g2)))
         {:keys [forward up]} (axes state)
         spd0 (speed state)
-        authority (* (m/clamp (/ spd0 50.0) 0.0 1.0)
-                     (if (:on-ground state) 0.5 1.0))
+        authority (* (m/clamp (/ spd0 50.0) 0.0 1.0) (if (:on-ground state) 0.5 1.0))
         pitch-rate (* (get-in state [:input :pitch]) (:pitch-rate s) authority)
         roll-rate (* -1.0 (get-in state [:input :roll]) (:roll-rate s) authority)
         yaw-rate0 (* -1.0 (get-in state [:input :yaw]) (:yaw-rate s) authority)
         yaw-rate (if (and (not (:on-ground state)) (> spd0 5.0))
-                   (+ yaw-rate0 (/ (* g (m/tan (m/clamp (:roll state) -1.05 1.05)))
-                                  (max spd0 20.0)))
+                   (+ yaw-rate0 (/ (* g (m/tan (m/clamp (:roll state) -1.05 1.05))) (max spd0 20.0)))
                    yaw-rate0)
         pitch1 (+ (:pitch state) (* pitch-rate dt))
         roll1 (+ (:roll state) (* roll-rate dt))
@@ -201,20 +193,18 @@
                   (if (:brake state) 3.2 1.0))
         drag (+ (* spd0 spd0 drag-k) (* drag-base spd0))
         [ax0 ay0 az0] [(* fx thrust) (+ -9.81 (* fy thrust)) (* fz thrust)]
-        [ax1 ay1 az1]
-        (if (> spd0 0.01)
-          [(- ax0 (* (/ vx0 spd0) drag))
-           (- ay0 (* (/ vy0 spd0) drag))
-           (- az0 (* (/ vz0 spd0) drag))]
-          [ax0 ay0 az0])
+        [ax1 ay1 az1] (if (> spd0 0.01)
+                        [(- ax0 (* (/ vx0 spd0) drag))
+                         (- ay0 (* (/ vy0 spd0) drag))
+                         (- az0 (* (/ vz0 spd0) drag))]
+                        [ax0 ay0 az0])
         lift (lift-force state)
-        [lx ly lz]
-        (if (> spd0 3.0)
-          (let [vn (m/normalize [vx0 vy0 vz0])
-                d (m/dot [ux uy uz] vn)
-                perp (m/v- [ux uy uz] (m/v* vn d))]
-            (m/normalize perp))
-          [ux uy uz])
+        [lx ly lz] (if (> spd0 3.0)
+                     (let [vn (m/normalize [vx0 vy0 vz0])
+                           d (m/dot [ux uy uz] vn)
+                           perp (m/v- [ux uy uz] (m/v* vn d))]
+                       (m/normalize perp))
+                     [ux uy uz])
         ax (+ ax1 (* lx lift))
         ay (+ ay1 (* ly lift))
         az (+ az1 (* lz lift))
@@ -224,32 +214,29 @@
         g-load (/ (+ (* ax ux) (* (+ ay g) uy) (* az uz)) g)
         state (assoc state :fuel fuel2 :lift-now lift :g-load g-load :vel [vx1 vy1 vz1])
         spd1 (speed state)
-        state
-        (cond
-          (and (:on-ground state) (> spd1 1.0))
-          (let [[fx _ fz] forward
-                fh (max 1.0e-9 (m/hypot2 fx fz))
-                t (min 1.0 (* 5.0 dt))
-                dx (+ vx1 (* (- (* (/ fx fh) spd1) vx1) t))
-                dz (+ vz1 (* (- (* (/ fz fh) spd1) vz1) t))
-                fr (* (if (:brake state) 7.0 0.5) dt)
-                hs (m/hypot2 dx dz)
-                k (if (> hs 0.01) (/ (max 0.0 (- hs fr)) hs) 1.0)]
-            (assoc state :vel [(* dx k) vy1 (* dz k)]))
+        state (cond
+                (and (:on-ground state) (> spd1 1.0))
+                (let [[fx _ fz] forward
+                      fh (max 1.0e-9 (m/hypot2 fx fz))
+                      t (min 1.0 (* 5.0 dt))
+                      dx (+ vx1 (* (- (* (/ fx fh) spd1) vx1) t))
+                      dz (+ vz1 (* (- (* (/ fz fh) spd1) vz1) t))
+                      fr (* (if (:brake state) 7.0 0.5) dt)
+                      hs (m/hypot2 dx dz)
+                      k (if (> hs 0.01) (/ (max 0.0 (- hs fr)) hs) 1.0)]
+                  (assoc state :vel [(* dx k) vy1 (* dz k)]))
 
-          (> spd1 1.0)
-          (let [t (min 1.0 (* (:align s) dt))
-                [dx0 dy0 dz0] (m/normalize [vx1 vy1 vz1])
-                dx (+ dx0 (* (- fx dx0) t))
-                dy (+ dy0 (* (- fy dy0) t))
-                dz (+ dz0 (* (- fz dz0) t))
-                [dx dy dz] (m/normalize [dx dy dz])]
-            (assoc state :vel [(* dx spd1) (* dy spd1) (* dz spd1)]))
+                (> spd1 1.0)
+                (let [t (min 1.0 (* (:align s) dt))
+                      [dx0 dy0 dz0] (m/normalize [vx1 vy1 vz1])
+                      dx (+ dx0 (* (- fx dx0) t))
+                      dy (+ dy0 (* (- fy dy0) t))
+                      dz (+ dz0 (* (- fz dz0) t))
+                      [dx dy dz] (m/normalize [dx dy dz])]
+                  (assoc state :vel [(* dx spd1) (* dy spd1) (* dz spd1)]))
 
-          :else state)
-        state (if (and (:on-ground state)
-                       (pos? (nth (:vel state) 1))
-                       (< lift g))
+                :else state)
+        state (if (and (:on-ground state) (pos? (nth (:vel state) 1)) (< lift g))
                 (assoc-in state [:vel 1] 0.0)
                 state)
         [vx vy vz] (:vel state)
@@ -262,13 +249,15 @@
             crash? (or (< impact -13.0)
                        (> (m/abs (:roll state)) 0.55)
                        (> (m/abs (:pitch state)) 0.5)
-                       (< (:gear state) 0.9))]
-        (-> state
-            (assoc :pos [x2 ground-y z2]
-                   :vel [vx (if (neg? vy) 0.0 vy) vz]
-                   :on-ground true
-                   :crashed crash?)
-            (cond-> (not crash?)
+                       (< (:gear state) 0.9))
+            landed (assoc state
+                          :pos [x2 ground-y z2]
+                          :vel [vx (if (neg? vy) 0.0 vy) vz]
+                          :on-ground true
+                          :crashed crash?)]
+        (if crash?
+          landed
+          (-> landed
               (update :roll #(* % (max 0.0 (- 1.0 (* 5.0 dt)))))
               (update :pitch #(m/clamp % -0.15 0.35)))))
       (assoc state
