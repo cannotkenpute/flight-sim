@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Sim</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="hud">
+    <div id="cam-label">CHASE CAM</div>
+
+    <div id="warnings">
+      <div id="warn-stall">STALL</div>
+      <div id="warn-pullup">PULL UP</div>
+      <div id="message"></div>
+    </div>
+
+    <div id="flight-data">
+      <div class="row"><span class="lbl">AIRFRAME</span><span id="hud-ac">PIPER HAWK</span></div>
+      <div class="row"><span class="lbl">SPD</span><span id="hud-spd">0 kt</span></div>
+      <div class="row"><span class="lbl">MACH</span><span id="hud-mach">0.00</span></div>
+      <div class="row"><span class="lbl">ALT</span><span id="hud-alt">0 m</span></div>
+      <div class="row"><span class="lbl">AGL</span><span id="hud-agl">0 m</span></div>
+      <div class="row"><span class="lbl">VSI</span><span id="hud-vsi">+0.0 m/s</span></div>
+      <div class="row"><span class="lbl">HDG</span><span id="hud-hdg">000°</span></div>
+      <div class="row"><span class="lbl">THR</span><span id="hud-thr">0%</span></div>
+      <div id="thr-track"><div id="hud-thr-bar"></div></div>
+      <div class="row"><span class="lbl">FLAPS</span><span id="hud-flaps">0%</span></div>
+      <div class="row"><span class="lbl">GEAR</span><span id="hud-gear">DOWN</span></div>
+    </div>
+
+    <div id="adi"><div id="adi-inner"></div><div id="adi-marker"></div></div>
+
+    <div id="controls-panel">
+      <div><kbd>W</kbd>/<kbd>S</kbd> throttle</div>
+      <div><kbd>↑</kbd>/<kbd>↓</kbd> pitch</div>
+      <div><kbd>←</kbd>/<kbd>→</kbd> roll</div>
+      <div><kbd>A</kbd>/<kbd>D</kbd> rudder</div>
+      <div><kbd>F</kbd>/<kbd>R</kbd> flaps ±</div>
+      <div><kbd>B</kbd> brakes</div>
+      <div><kbd>G</kbd> landing gear</div>
+      <div><kbd>M</kbd> mute</div>
+      <div><kbd>V</kbd> swap aircraft</div>
+      <div><kbd>C</kbd> / <kbd>1-4</kbd> camera</div>
+      <div><kbd>T</kbd> wireframe</div>
+      <div><kbd>Space</kbd> reset</div>
+      <div><kbd>P</kbd> pause</div>
+    </div>
+  </div>
+
+  <script src="js/three.min.js"></script>
+  <script src="js/heightfield.js"></script>
+  <script src="js/flight.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/plane.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
