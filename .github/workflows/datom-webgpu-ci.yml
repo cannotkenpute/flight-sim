@@ -57,40 +57,83 @@ jobs:
       - name: Build optimized full browser bundle
         run: clojure -M:dev -m shadow.cljs.devtools.cli release app
 
-      - name: Runtime smoke in Chromium
+      - name: Runtime smoke through Chrome DevTools Protocol
         shell: bash
         run: |
-          cat > public/gpu-probe.html <<'EOF'
-          <!doctype html><body>PROBING<script>
-          document.body.textContent = 'GPU=' + Boolean(navigator.gpu);
-          </script></body>
-          EOF
           python3 -m http.server 8080 --directory public >/tmp/flight-http.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill $SERVER_PID || true' EXIT
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then break; fi
-            sleep 0.2
-          done
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME"
           "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage \
-            --enable-unsafe-webgpu --enable-features=Vulkan,UseSkiaRenderer \
-            --use-angle=vulkan --virtual-time-budget=7000 --dump-dom \
-            http://127.0.0.1:8080/gpu-probe.html > /tmp/gpu-probe-dom.html 2>/tmp/gpu-probe.err || true
-          cat /tmp/gpu-probe-dom.html
-          "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage \
-            --enable-unsafe-webgpu --enable-features=Vulkan,UseSkiaRenderer \
-            --use-angle=vulkan --virtual-time-budget=9000 --dump-dom \
-            http://127.0.0.1:8080/ > /tmp/flight-dom.html 2>/tmp/flight-chrome.err
-          grep -q 'Datom.World PostGraphics flight simulator' /tmp/flight-dom.html
-          grep -q 'AIRFRAME' /tmp/flight-dom.html
-          grep -Eq 'WEBGPU|SOFTWARE FALLBACK' /tmp/flight-dom.html
-          if grep -q 'PostGraphics frame rejected' /tmp/flight-dom.html; then
-            cat /tmp/flight-dom.html
-            exit 1
-          fi
-          echo '--- renderer marker ---'
-          grep -Eo 'WEBGPU|SOFTWARE FALLBACK' /tmp/flight-dom.html | head -1
+            --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 \
+            --enable-unsafe-webgpu --enable-unsafe-swiftshader \
+            --use-angle=swiftshader --disable-gpu-sandbox \
+            http://127.0.0.1:8080/ >/tmp/flight-chrome.out 2>/tmp/flight-chrome.err &
+          CHROME_PID=$!
+          trap 'kill $CHROME_PID $SERVER_PID 2>/dev/null || true' EXIT
+          cat > /tmp/runtime-smoke.mjs <<'EOF'
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          let targets;
+          for (let i = 0; i < 80; i++) {
+            try {
+              const r = await fetch('http://127.0.0.1:9222/json/list');
+              targets = await r.json();
+              if (targets.some(t => t.type === 'page')) break;
+            } catch (_) {}
+            await sleep(250);
+          }
+          const page = targets?.find(t => t.type === 'page');
+          if (!page) throw new Error('No Chromium page target');
+          const ws = new WebSocket(page.webSocketDebuggerUrl);
+          await new Promise((resolve, reject) => {
+            ws.onopen = resolve;
+            ws.onerror = reject;
+          });
+          let nextId = 0;
+          const pending = new Map();
+          ws.onmessage = event => {
+            const msg = JSON.parse(event.data);
+            if (msg.id && pending.has(msg.id)) {
+              const {resolve, reject} = pending.get(msg.id);
+              pending.delete(msg.id);
+              if (msg.error) reject(new Error(JSON.stringify(msg.error)));
+              else resolve(msg.result);
+            }
+          };
+          const send = (method, params = {}) => new Promise((resolve, reject) => {
+            const id = ++nextId;
+            pending.set(id, {resolve, reject});
+            ws.send(JSON.stringify({id, method, params}));
+          });
+          const evaluate = async expression => {
+            const r = await send('Runtime.evaluate', {expression, returnByValue: true, awaitPromise: true});
+            if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails));
+            return r.result.value;
+          };
+          await send('Runtime.enable');
+          await send('Page.enable');
+          for (let i = 0; i < 80; i++) {
+            if (await evaluate("Boolean(document.querySelector('canvas[aria-label=\"Datom.World PostGraphics flight simulator\"]'))")) break;
+            await sleep(250);
+          }
+          const mounted = await evaluate("Boolean(document.querySelector('canvas[aria-label=\"Datom.World PostGraphics flight simulator\"]'))");
+          if (!mounted) throw new Error('PostGraphics canvas did not mount');
+          const body = await evaluate('document.body.innerText');
+          if (!body.includes('AIRFRAME')) throw new Error('HUD did not mount');
+          if (body.includes('PostGraphics frame rejected')) throw new Error('PostGraphics frame rejected at runtime');
+          const gpu = await evaluate('Boolean(navigator.gpu)');
+          const renderer = body.includes('WEBGPU') ? 'WEBGPU' : (body.includes('SOFTWARE FALLBACK') ? 'SOFTWARE FALLBACK' : 'UNKNOWN');
+          const before = await evaluate("document.getElementById('cam-label')?.textContent || ''");
+          await send('Input.dispatchKeyEvent', {type:'keyDown', key:'c', code:'KeyC', text:'c', unmodifiedText:'c', windowsVirtualKeyCode:67, nativeVirtualKeyCode:67});
+          await send('Input.dispatchKeyEvent', {type:'keyUp', key:'c', code:'KeyC', windowsVirtualKeyCode:67, nativeVirtualKeyCode:67});
+          await sleep(750);
+          const after = await evaluate("document.getElementById('cam-label')?.textContent || ''");
+          if (!before || !after || before === after) throw new Error(`dao.gui.event camera input failed: ${before} -> ${after}`);
+          const errorBanner = await evaluate("document.querySelector('.error-banner')?.textContent || ''");
+          if (errorBanner) throw new Error(errorBanner);
+          console.log(JSON.stringify({gpu, renderer, cameraBefore: before, cameraAfter: after}));
+          ws.close();
+          EOF
+          timeout 35s node /tmp/runtime-smoke.mjs
           echo '--- chrome diagnostics ---'
-          tail -80 /tmp/flight-chrome.err || true
+          tail -100 /tmp/flight-chrome.err || true
