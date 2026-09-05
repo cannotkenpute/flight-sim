@@ -56,3 +56,41 @@ jobs:
 
       - name: Build optimized full browser bundle
         run: clojure -M:dev -m shadow.cljs.devtools.cli release app
+
+      - name: Runtime smoke in Chromium
+        shell: bash
+        run: |
+          cat > public/gpu-probe.html <<'EOF'
+          <!doctype html><body>PROBING<script>
+          document.body.textContent = 'GPU=' + Boolean(navigator.gpu);
+          </script></body>
+          EOF
+          python3 -m http.server 8080 --directory public >/tmp/flight-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then break; fi
+            sleep 0.2
+          done
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage \
+            --enable-unsafe-webgpu --enable-features=Vulkan,UseSkiaRenderer \
+            --use-angle=vulkan --virtual-time-budget=7000 --dump-dom \
+            http://127.0.0.1:8080/gpu-probe.html > /tmp/gpu-probe-dom.html 2>/tmp/gpu-probe.err || true
+          cat /tmp/gpu-probe-dom.html
+          "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage \
+            --enable-unsafe-webgpu --enable-features=Vulkan,UseSkiaRenderer \
+            --use-angle=vulkan --virtual-time-budget=9000 --dump-dom \
+            http://127.0.0.1:8080/ > /tmp/flight-dom.html 2>/tmp/flight-chrome.err
+          grep -q 'Datom.World PostGraphics flight simulator' /tmp/flight-dom.html
+          grep -q 'AIRFRAME' /tmp/flight-dom.html
+          grep -Eq 'WEBGPU|SOFTWARE FALLBACK' /tmp/flight-dom.html
+          if grep -q 'PostGraphics frame rejected' /tmp/flight-dom.html; then
+            cat /tmp/flight-dom.html
+            exit 1
+          fi
+          echo '--- renderer marker ---'
+          grep -Eo 'WEBGPU|SOFTWARE FALLBACK' /tmp/flight-dom.html | head -1
+          echo '--- chrome diagnostics ---'
+          tail -80 /tmp/flight-chrome.err || true
